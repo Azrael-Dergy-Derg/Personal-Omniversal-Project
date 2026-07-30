@@ -1,1 +1,31 @@
 Master Canon File
+00-Master-Canon/
+│
+├── Characters/
+│   ├── Azrael.md
+│   ├── [Other characters...]
+│   └── _Index.md          ← goes here
+│
+├── Locations/
+│   ├── [Location files...]
+│   └── _Index.md          ← goes here
+│
+├── Factions/
+│   └── _Index.md          ← goes here
+│
+├── Species/
+│   └── _Index.md          ← goes here
+│
+├── Equipment/
+│   └── _Index.md          ← goes here
+│
+├── Magic-Systems/
+│   └── _Index.md          ← goes here
+│
+├── History-Timeline/
+│   └── _Index.md          ← goes here
+│
+├── Philosophy-Themes/
+│   └── _Index.md          ← goes here
+│
+└── Omniversal-Constants.md
