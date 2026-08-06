@@ -2,11 +2,9 @@ Azrael - Appearance
 
 ⸻
 
-General Description
+## General Description
 
-Azrael’s appearance is designed to represent the contrast between ancient power, battle experience, and disciplined restraint.
-
-Across universes, his exact species and anatomy may change to fit the setting, but his recognizable visual identity remains consistent.
+Azrael maintains a recognizable appearance across the Omniverse. While his species and anatomy may change to fit the universe he inhabits, several visual characteristics remain consistent and serve as his defining features.
 
 ⸻
 
