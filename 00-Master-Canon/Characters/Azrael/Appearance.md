@@ -46,8 +46,8 @@ Eyes
 
 Azrael’s eyes are one of his most recognizable traits.
 
-* Green eye: Represents his connection to life, knowledge, and balance.
-* Red eye: Represents his connection to darker forces and the powers he studies.
+* Green eye
+* Red eye
 
 The contrast reflects the duality present throughout his existence.
 
