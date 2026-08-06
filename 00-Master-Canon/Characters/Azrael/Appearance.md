@@ -42,14 +42,15 @@ These features remain consistent visual identifiers across different interpretat
 
 ⸻
 
-Eyes
+## Eyes
 
-Azrael’s eyes are one of his most recognizable traits.
+Azrael possesses heterochromia.
 
-* Green eye
-* Red eye
+- Left eye: Green
 
-The contrast reflects the duality present throughout his existence.
+- Right eye: Red
+
+His mismatched eyes are among his most recognizable physical features and remain consistent across nearly all interpretations of the character.
 
 ⸻
 
