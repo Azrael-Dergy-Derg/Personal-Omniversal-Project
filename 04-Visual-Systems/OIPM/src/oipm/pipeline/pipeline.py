@@ -1,285 +1,381 @@
-"""Core processing pipeline for the Omniversal Image Prompt Maker (OIPM).
-
-The OIPMPipeline coordinates OIPM processing stages while preserving
-
-upstream visual intent and structured state.
-
-Current pipeline:
-
-    Raw User Input
-
-        ↓
-
-    InputInterpreter
-
-        ↓
-
-    VisualIntent
-
-        ↓
-
-    VisualIntentValidator
-
-        ↓
-
-    CompositionEngine
-
-        ↓
-
-    PromptAssembler
-
-        ↓
-
-    Prompt
-
-The pipeline is intentionally incremental. Individual visual-intelligence
-
-engines are integrated as they become stable rather than being simulated
-
-through prompt text.
-
-VisualIntent remains the source of truth.
-
-"""
+"""Tests for the OIPM processing pipeline."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import pytest
 
-from oipm.assembly import PromptAssembler
+from oipm.composition import CompositionEngine
 
-from oipm.composition import CompositionEngine, CompositionResult
+from oipm.pipeline import OIPMPipeline, PipelineResult
 
-from oipm.interpretation.input_interpreter import (
+def test_pipeline_processes_basic_input_end_to_end() -> None:
 
-    InputInterpreter,
+    """A valid request should pass through every current pipeline stage."""
 
-    InterpretationResult,
+    pipeline = OIPMPipeline()
 
-)
+    result = pipeline.process(
 
-from oipm.validation import (
+        "A dark fantasy dragon beneath a moonlit sky."
 
-    ValidationIssue,
+    )
 
-    ValidationResult,
+    assert isinstance(result, PipelineResult)
 
-    VisualIntentValidator,
+    assert result.validation.valid is True
 
-)
+    assert result.validation.issues == ()
 
-@dataclass(frozen=True)
+    assert result.composition is not None
 
-class PipelineResult:
+    assert result.prompt != ""
 
-    """Complete result produced by the current OIPM pipeline."""
+def test_pipeline_preserves_user_input() -> None:
 
-    interpretation: InterpretationResult
+    """The original normalized user input should remain in VisualIntent."""
 
-    validation: ValidationResult
+    user_input = "A dark fantasy dragon beneath a moonlit sky."
 
-    composition: CompositionResult | None
+    result = OIPMPipeline().process(user_input)
 
-    prompt: str
+    assert (
 
-class OIPMPipeline:
+        result.interpretation.visual_intent.metadata.user_input
 
-    """Coordinate the currently implemented OIPM processing stages."""
+        == user_input
 
-    name = "OIPMPipeline"
+    )
 
-    version = "0.1.0"
+def test_pipeline_preserves_project_and_scene_metadata() -> None:
 
-    def __init__(
+    """Project and scene identifiers should reach VisualIntent metadata."""
 
-        self,
+    result = OIPMPipeline().process(
 
-        *,
+        "A dragon standing in an ancient ruin.",
 
-        interpreter: InputInterpreter | None = None,
+        project="TestProject",
 
-        validator: VisualIntentValidator | None = None,
+        scene_id="scene-001",
 
-        composition_engine: CompositionEngine | None = None,
+    )
 
-        assembler: PromptAssembler | None = None,
+    metadata = result.interpretation.visual_intent.metadata
 
-    ) -> None:
+    assert metadata.project == "TestProject"
 
-        """Initialize the pipeline with its processing components."""
+    assert metadata.scene_id == "scene-001"
 
-        self.interpreter = interpreter or InputInterpreter()
+def test_pipeline_runs_composition_engine() -> None:
 
-        self.validator = validator or VisualIntentValidator()
+    """Valid input should produce a CompositionResult."""
 
-        self.composition_engine = (
+    result = OIPMPipeline().process(
 
-            composition_engine or CompositionEngine()
+        "A dragon beneath a moonlit sky.",
+
+        framing="medium shot",
+
+        camera_angle="low angle",
+
+        camera_distance="medium distance",
+
+        lens="50mm",
+
+        perspective="natural perspective",
+
+        depth_of_field="shallow depth of field",
+
+    )
+
+    assert result.composition is not None
+
+    assert result.composition.composition.framing == "medium shot"
+
+    assert result.composition.composition.camera_angle == "low angle"
+
+    assert result.composition.composition.camera_distance == "medium distance"
+
+    assert result.composition.composition.lens == "50mm"
+
+    assert (
+
+        result.composition.composition.perspective
+
+        == "natural perspective"
+
+    )
+
+    assert (
+
+        result.composition.composition.depth_of_field
+
+        == "shallow depth of field"
+
+    )
+
+def test_pipeline_preserves_existing_composition_values() -> None:
+
+    """Existing composition values should not be silently overwritten."""
+
+    pipeline = OIPMPipeline()
+
+    interpretation = pipeline.interpreter.process(
+
+        "A dragon beneath a moonlit sky."
+
+    )
+
+    interpretation.visual_intent.composition.framing = "close-up"
+
+    pipeline.validator.validate(
+
+        interpretation.visual_intent
+
+    )
+
+    composition = pipeline.composition_engine.construct(
+
+        interpretation.visual_intent,
+
+        framing="wide shot",
+
+    )
+
+    assert composition.composition.framing == "close-up"
+
+    assert composition.warnings == (
+
+        "Existing composition framing conflicts with "
+
+        "supplied framing; existing value was preserved.",
+
+    )
+
+def test_pipeline_generates_prompt_from_structured_intent() -> None:
+
+    """Prompt output should be produced from the assembled VisualIntent."""
+
+    pipeline = OIPMPipeline()
+
+    interpretation = pipeline.interpreter.process(
+
+        "A dragon beneath a moonlit sky."
+
+    )
+
+    subject = interpretation.visual_intent.subjects
+
+    assert subject == []
+
+    interpretation.visual_intent.scene.location = "an ancient ruin"
+
+    interpretation.visual_intent.scene.weather = "moonlit sky"
+
+    validation = pipeline.validate_interpretation(
+
+        interpretation
+
+    )
+
+    assert validation.valid is True
+
+    prompt = pipeline.assembler.assemble(
+
+        interpretation.visual_intent
+
+    )
+
+    assert "Scene:" in prompt
+
+    assert "an ancient ruin" in prompt
+
+    assert "moonlit sky" in prompt
+
+def test_pipeline_does_not_generate_prompt_for_invalid_intent() -> None:
+
+    """Invalid VisualIntent state should prevent later pipeline stages."""
+
+    pipeline = OIPMPipeline()
+
+    interpretation = pipeline.interpreter.process(
+
+        "A valid image request."
+
+    )
+
+    interpretation.visual_intent.metadata.user_input = ""
+
+    validation = pipeline.validator.validate(
+
+        interpretation.visual_intent
+
+    )
+
+    pipeline_result = PipelineResult(
+
+        interpretation=interpretation,
+
+        validation=validation,
+
+        composition=None,
+
+        prompt="",
+
+    )
+
+    assert pipeline_result.validation.valid is False
+
+    assert pipeline_result.composition is None
+
+    assert pipeline_result.prompt == ""
+
+def test_pipeline_does_not_run_composition_for_invalid_intent() -> None:
+
+    """Invalid intent should prevent composition processing."""
+
+    pipeline = OIPMPipeline()
+
+    interpretation = pipeline.interpreter.process(
+
+        "A valid image request."
+
+    )
+
+    interpretation.visual_intent.metadata.user_input = ""
+
+    validation = pipeline.validator.validate(
+
+        interpretation.visual_intent
+
+    )
+
+    assert validation.valid is False
+
+    composition = None
+
+    if validation.valid:
+
+        composition = pipeline.composition_engine.construct(
+
+            interpretation.visual_intent,
 
         )
 
-        self.assembler = assembler or PromptAssembler()
+    assert composition is None
 
-    def process(
+def test_pipeline_reports_short_input_warning() -> None:
 
-        self,
+    """Very short input should preserve the interpreter warning."""
 
-        user_input: str,
+    result = OIPMPipeline().process("dragon")
 
-        *,
+    assert (
 
-        project: str | None = None,
+        "Input is very short and may require additional "
 
-        scene_id: str | None = None,
+        "interpretation or clarification."
 
-        framing: str | None = None,
+        in result.interpretation.warnings
 
-        camera_angle: str | None = None,
+    )
 
-        camera_distance: str | None = None,
+def test_pipeline_accepts_normal_input_without_warning() -> None:
 
-        lens: str | None = None,
+    """Normal-length input should not produce the short-input warning."""
 
-        perspective: str | None = None,
+    result = OIPMPipeline().process(
 
-        depth_of_field: str | None = None,
+        "A dragon warrior standing beneath a moonlit sky."
 
-    ) -> PipelineResult:
+    )
 
-        """Process raw user input through the current OIPM pipeline.
+    assert result.interpretation.warnings == ()
 
-        Args:
+def test_pipeline_validation_messages_are_available() -> None:
 
-            user_input: The user's original image-generation request.
+    """Validation messages should be exposed in stable order."""
 
-            project: Optional project identifier.
+    pipeline = OIPMPipeline()
 
-            scene_id: Optional scene identifier.
+    interpretation = pipeline.interpreter.process(
 
-            framing: Optional explicit framing instruction.
+        "A valid image request."
 
-            camera_angle: Optional explicit camera-angle instruction.
+    )
 
-            camera_distance: Optional explicit camera-distance instruction.
+    interpretation.visual_intent.metadata.user_input = ""
 
-            lens: Optional explicit lens instruction.
+    validation = pipeline.validator.validate(
 
-            perspective: Optional explicit perspective instruction.
+        interpretation.visual_intent
 
-            depth_of_field: Optional explicit depth-of-field instruction.
+    )
 
-        Returns:
+    messages = pipeline.validation_messages(validation)
 
-            A PipelineResult containing interpretation, validation,
+    assert len(messages) == len(validation.issues)
 
-            composition, and assembled prompt output.
+    for message, issue in zip(messages, validation.issues):
 
-        Raises:
+        assert message == issue.message
 
-            ValueError: If the input interpreter rejects the user input.
+def test_pipeline_validation_issues_are_available() -> None:
 
-        """
+    """Structured validation issues should remain accessible."""
 
-        interpretation = self.interpreter.process(
+    pipeline = OIPMPipeline()
 
-            user_input,
+    interpretation = pipeline.interpreter.process(
 
-            project=project,
+        "A valid image request."
 
-            scene_id=scene_id,
+    )
 
-        )
+    interpretation.visual_intent.metadata.user_input = ""
 
-        validation = self.validator.validate(
+    validation = pipeline.validator.validate(
 
-            interpretation.visual_intent
+        interpretation.visual_intent
 
-        )
+    )
 
-        composition: CompositionResult | None = None
+    issues = pipeline.validation_issues(validation)
 
-        prompt = ""
+    assert issues == validation.issues
 
-        if validation.valid:
+def test_pipeline_rejects_empty_input() -> None:
 
-            composition = self.composition_engine.construct(
+    """Empty input should be rejected by the input interpreter."""
 
-                interpretation.visual_intent,
+    with pytest.raises(ValueError):
 
-                framing=framing,
+        OIPMPipeline().process("")
 
-                camera_angle=camera_angle,
+def test_pipeline_rejects_non_string_input() -> None:
 
-                camera_distance=camera_distance,
+    """Non-string input should be rejected by the input interpreter."""
 
-                lens=lens,
+    with pytest.raises(ValueError):
 
-                perspective=perspective,
+        OIPMPipeline().process(123)  # type: ignore[arg-type]
 
-                depth_of_field=depth_of_field,
+def test_pipeline_supports_component_injection() -> None:
 
-            )
+    """Pipeline components should be replaceable for extensibility."""
 
-            prompt = self.assembler.assemble(
+    composition_engine = CompositionEngine()
 
-                interpretation.visual_intent
+    pipeline = OIPMPipeline(
 
-            )
+        composition_engine=composition_engine,
 
-        return PipelineResult(
+    )
 
-            interpretation=interpretation,
+    assert pipeline.interpreter is not None
 
-            validation=validation,
+    assert pipeline.validator is not None
 
-            composition=composition,
+    assert pipeline.composition_engine is composition_engine
 
-            prompt=prompt,
-
-        )
-
-    def validate_interpretation(
-
-        self,
-
-        interpretation: InterpretationResult,
-
-    ) -> ValidationResult:
-
-        """Validate an existing interpretation result."""
-
-        return self.validator.validate(
-
-            interpretation.visual_intent
-
-        )
-
-    @staticmethod
-
-    def validation_messages(
-
-        validation: ValidationResult,
-
-    ) -> tuple[str, ...]:
-
-        """Return validation issue messages in stable order."""
-
-        return tuple(
-
-            issue.message
-
-            for issue in validation.issues
-
-        )
-
-    @staticmethod
-
-    def validation_issues(
-
-        validation: ValidationResult,
-
-    ) -> tuple[ValidationIssue, ...]:
-
-        """Return structured validation issues."""
-
-        return validation.issues
+    assert pipeline.assembler is not None
