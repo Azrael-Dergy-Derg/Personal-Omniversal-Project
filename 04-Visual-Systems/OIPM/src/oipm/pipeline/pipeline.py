@@ -1,44 +1,50 @@
 """Core processing pipeline for the Omniversal Image Prompt Maker (OIPM).
 
-The OIPMPipeline coordinates OIPM processing stages while preserving
+The pipeline coordinates the current OIPM processing stages while preserving
 
-upstream visual intent and structured state.
+VisualIntent as the authoritative internal representation.
 
-Current pipeline:
+Current flow:
 
-    Raw User Input
+Raw User Input
 
-        ↓
+    ↓
 
-    InputInterpreter
+Input Interpretation
 
-        ↓
+    ↓
 
-    VisualIntent
+Visual Intent Validation
 
-        ↓
+    ↓
 
-    VisualIntentValidator
+Subject Resolution
 
-        ↓
+    ↓
 
-    CompositionEngine
+Scene Construction
 
-        ↓
+    ↓
 
-    PromptAssembler
+Composition & Camera Construction
 
-        ↓
+    ↓
 
-    Prompt
+Lighting & Atmosphere Construction
 
-The pipeline is intentionally incremental. Individual visual-intelligence
+    ↓
 
-engines are integrated as they become stable rather than being simulated
+Prompt Assembly
 
-through prompt text.
+    ↓
 
-VisualIntent remains the source of truth.
+Pipeline Result
+
+Each subsystem is intentionally conservative. Components may organize or
+
+apply explicitly supplied information, but they must not silently invent
+
+visual decisions or overwrite higher-priority existing information.
 
 """
 
@@ -50,17 +56,17 @@ from oipm.assembly import PromptAssembler
 
 from oipm.composition import CompositionEngine, CompositionResult
 
-from oipm.interpretation.input_interpreter import (
+from oipm.interpretation import InputInterpreter, InterpretationResult
 
-    InputInterpreter,
+from oipm.lighting import LightingEngine, LightingResult
 
-    InterpretationResult,
+from oipm.models import VisualIntent
 
-)
+from oipm.scene import SceneConstructionResult, SceneConstructor
+
+from oipm.subjects import SubjectResolutionResult, SubjectResolver
 
 from oipm.validation import (
-
-    ValidationIssue,
 
     ValidationResult,
 
@@ -72,23 +78,27 @@ from oipm.validation import (
 
 class PipelineResult:
 
-    """Complete result produced by the current OIPM pipeline."""
+    """Complete result produced by the OIPM processing pipeline."""
+
+    visual_intent: VisualIntent
 
     interpretation: InterpretationResult
 
     validation: ValidationResult
 
-    composition: CompositionResult | None
+    subject_resolution: SubjectResolutionResult | None = None
 
-    prompt: str
+    scene_construction: SceneConstructionResult | None = None
+
+    composition: CompositionResult | None = None
+
+    lighting: LightingResult | None = None
+
+    prompt: str = ""
 
 class OIPMPipeline:
 
-    """Coordinate the currently implemented OIPM processing stages."""
-
-    name = "OIPMPipeline"
-
-    version = "0.1.0"
+    """Coordinate the current OIPM processing stages."""
 
     def __init__(
 
@@ -100,23 +110,31 @@ class OIPMPipeline:
 
         validator: VisualIntentValidator | None = None,
 
+        subject_resolver: SubjectResolver | None = None,
+
+        scene_constructor: SceneConstructor | None = None,
+
         composition_engine: CompositionEngine | None = None,
+
+        lighting_engine: LightingEngine | None = None,
 
         assembler: PromptAssembler | None = None,
 
     ) -> None:
 
-        """Initialize the pipeline with its processing components."""
+        """Initialize the pipeline with optional component overrides."""
 
         self.interpreter = interpreter or InputInterpreter()
 
         self.validator = validator or VisualIntentValidator()
 
-        self.composition_engine = (
+        self.subject_resolver = subject_resolver or SubjectResolver()
 
-            composition_engine or CompositionEngine()
+        self.scene_constructor = scene_constructor or SceneConstructor()
 
-        )
+        self.composition_engine = composition_engine or CompositionEngine()
+
+        self.lighting_engine = lighting_engine or LightingEngine()
 
         self.assembler = assembler or PromptAssembler()
 
@@ -128,9 +146,23 @@ class OIPMPipeline:
 
         *,
 
-        project: str | None = None,
+        project_id: str | None = None,
 
         scene_id: str | None = None,
+
+        subject_identity: str | None = None,
+
+        subject_type: str | None = None,
+
+        species: str | None = None,
+
+        location: str | None = None,
+
+        time: str | None = None,
+
+        weather: str | None = None,
+
+        narrative_context: str | None = None,
 
         framing: str | None = None,
 
@@ -144,142 +176,136 @@ class OIPMPipeline:
 
         depth_of_field: str | None = None,
 
+        light_source: str | None = None,
+
+        direction: str | None = None,
+
+        intensity: str | None = None,
+
+        color_temperature: str | None = None,
+
+        contrast: str | None = None,
+
+        atmospheric_effects: str | None = None,
+
+        volumetric_effects: str | None = None,
+
+        environmental_interaction: str | None = None,
+
     ) -> PipelineResult:
 
-        """Process raw user input through the current OIPM pipeline.
+        """Process user input through the current OIPM pipeline."""
 
-        Args:
-
-            user_input: The user's original image-generation request.
-
-            project: Optional project identifier.
-
-            scene_id: Optional scene identifier.
-
-            framing: Optional explicit framing instruction.
-
-            camera_angle: Optional explicit camera-angle instruction.
-
-            camera_distance: Optional explicit camera-distance instruction.
-
-            lens: Optional explicit lens instruction.
-
-            perspective: Optional explicit perspective instruction.
-
-            depth_of_field: Optional explicit depth-of-field instruction.
-
-        Returns:
-
-            A PipelineResult containing interpretation, validation,
-
-            composition, and assembled prompt output.
-
-        Raises:
-
-            ValueError: If the input interpreter rejects the user input.
-
-        """
-
-        interpretation = self.interpreter.process(
+        interpretation = self.interpreter.interpret(
 
             user_input,
 
-            project=project,
+            project_id=project_id,
 
             scene_id=scene_id,
 
         )
 
-        validation = self.validator.validate(
+        visual_intent = interpretation.visual_intent
 
-            interpretation.visual_intent
+        validation = self.validator.validate(visual_intent)
+
+        if not validation.is_valid:
+
+            return PipelineResult(
+
+                visual_intent=visual_intent,
+
+                interpretation=interpretation,
+
+                validation=validation,
+
+            )
+
+        subject_resolution = self.subject_resolver.resolve(
+
+            visual_intent,
+
+            identity=subject_identity,
+
+            subject_type=subject_type,
+
+            species=species,
 
         )
 
-        composition: CompositionResult | None = None
+        scene_construction = self.scene_constructor.construct(
 
-        prompt = ""
+            visual_intent,
 
-        if validation.valid:
+            location=location,
 
-            composition = self.composition_engine.construct(
+            time=time,
 
-                interpretation.visual_intent,
+            weather=weather,
 
-                framing=framing,
+            narrative_context=narrative_context,
 
-                camera_angle=camera_angle,
+        )
 
-                camera_distance=camera_distance,
+        composition = self.composition_engine.construct(
 
-                lens=lens,
+            visual_intent,
 
-                perspective=perspective,
+            framing=framing,
 
-                depth_of_field=depth_of_field,
+            camera_angle=camera_angle,
 
-            )
+            camera_distance=camera_distance,
 
-            prompt = self.assembler.assemble(
+            lens=lens,
 
-                interpretation.visual_intent
+            perspective=perspective,
 
-            )
+            depth_of_field=depth_of_field,
+
+        )
+
+        lighting = self.lighting_engine.construct(
+
+            visual_intent,
+
+            light_source=light_source,
+
+            direction=direction,
+
+            intensity=intensity,
+
+            color_temperature=color_temperature,
+
+            contrast=contrast,
+
+            atmospheric_effects=atmospheric_effects,
+
+            volumetric_effects=volumetric_effects,
+
+            environmental_interaction=environmental_interaction,
+
+        )
+
+        prompt = self.assembler.assemble(visual_intent)
 
         return PipelineResult(
+
+            visual_intent=visual_intent,
 
             interpretation=interpretation,
 
             validation=validation,
 
+            subject_resolution=subject_resolution,
+
+            scene_construction=scene_construction,
+
             composition=composition,
+
+            lighting=lighting,
 
             prompt=prompt,
 
         )
-
-    def validate_interpretation(
-
-        self,
-
-        interpretation: InterpretationResult,
-
-    ) -> ValidationResult:
-
-        """Validate an existing interpretation result."""
-
-        return self.validator.validate(
-
-            interpretation.visual_intent
-
-        )
-
-    @staticmethod
-
-    def validation_messages(
-
-        validation: ValidationResult,
-
-    ) -> tuple[str, ...]:
-
-        """Return validation issue messages in stable order."""
-
-        return tuple(
-
-            issue.message
-
-            for issue in validation.issues
-
-        )
-
-    @staticmethod
-
-    def validation_issues(
-
-        validation: ValidationResult,
-
-    ) -> tuple[ValidationIssue, ...]:
-
-        """Return structured validation issues."""
-
-        return validation.issues
