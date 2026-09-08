@@ -1,8 +1,8 @@
 """Core processing pipeline for the Omniversal Image Prompt Maker (OIPM).
 
-The OIPMPipeline coordinates the currently implemented OIPM processing
+The OIPMPipeline coordinates OIPM processing stages while preserving
 
-stages without allowing any individual stage to redefine upstream intent.
+upstream visual intent and structured state.
 
 Current pipeline:
 
@@ -22,17 +22,23 @@ Current pipeline:
 
         ↓
 
+    CompositionEngine
+
+        ↓
+
     PromptAssembler
 
         ↓
 
     Prompt
 
-This implementation represents the initial OIPM vertical slice.
+The pipeline is intentionally incremental. Individual visual-intelligence
 
-Additional interpretation, reasoning, resolution, analysis, refinement,
+engines are integrated as they become stable rather than being simulated
 
-and generator-adaptation stages will be integrated as they are built.
+through prompt text.
+
+VisualIntent remains the source of truth.
 
 """
 
@@ -41,6 +47,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from oipm.assembly import PromptAssembler
+
+from oipm.composition import CompositionEngine, CompositionResult
 
 from oipm.interpretation.input_interpreter import (
 
@@ -70,6 +78,8 @@ class PipelineResult:
 
     validation: ValidationResult
 
+    composition: CompositionResult | None
+
     prompt: str
 
 class OIPMPipeline:
@@ -90,6 +100,8 @@ class OIPMPipeline:
 
         validator: VisualIntentValidator | None = None,
 
+        composition_engine: CompositionEngine | None = None,
+
         assembler: PromptAssembler | None = None,
 
     ) -> None:
@@ -99,6 +111,12 @@ class OIPMPipeline:
         self.interpreter = interpreter or InputInterpreter()
 
         self.validator = validator or VisualIntentValidator()
+
+        self.composition_engine = (
+
+            composition_engine or CompositionEngine()
+
+        )
 
         self.assembler = assembler or PromptAssembler()
 
@@ -114,6 +132,18 @@ class OIPMPipeline:
 
         scene_id: str | None = None,
 
+        framing: str | None = None,
+
+        camera_angle: str | None = None,
+
+        camera_distance: str | None = None,
+
+        lens: str | None = None,
+
+        perspective: str | None = None,
+
+        depth_of_field: str | None = None,
+
     ) -> PipelineResult:
 
         """Process raw user input through the current OIPM pipeline.
@@ -126,11 +156,23 @@ class OIPMPipeline:
 
             scene_id: Optional scene identifier.
 
+            framing: Optional explicit framing instruction.
+
+            camera_angle: Optional explicit camera-angle instruction.
+
+            camera_distance: Optional explicit camera-distance instruction.
+
+            lens: Optional explicit lens instruction.
+
+            perspective: Optional explicit perspective instruction.
+
+            depth_of_field: Optional explicit depth-of-field instruction.
+
         Returns:
 
             A PipelineResult containing interpretation, validation,
 
-            and assembled prompt output.
+            composition, and assembled prompt output.
 
         Raises:
 
@@ -154,9 +196,29 @@ class OIPMPipeline:
 
         )
 
+        composition: CompositionResult | None = None
+
         prompt = ""
 
         if validation.valid:
+
+            composition = self.composition_engine.construct(
+
+                interpretation.visual_intent,
+
+                framing=framing,
+
+                camera_angle=camera_angle,
+
+                camera_distance=camera_distance,
+
+                lens=lens,
+
+                perspective=perspective,
+
+                depth_of_field=depth_of_field,
+
+            )
 
             prompt = self.assembler.assemble(
 
@@ -169,6 +231,8 @@ class OIPMPipeline:
             interpretation=interpretation,
 
             validation=validation,
+
+            composition=composition,
 
             prompt=prompt,
 
