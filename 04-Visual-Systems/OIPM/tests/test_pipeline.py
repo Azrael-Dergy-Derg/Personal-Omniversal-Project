@@ -2,6 +2,8 @@
 
 import pytest
 
+from oipm.artistic_direction import ArtisticDirectionEngine
+
 from oipm.lighting import LightingEngine
 
 from oipm.models import VisualIntent
@@ -342,6 +344,330 @@ def test_pipeline_preserves_lighting_conflicts() -> None:
 
     assert len(second_result.warnings) == 1
 
+def test_pipeline_executes_artistic_direction_engine() -> None:
+
+    """Explicit artistic direction should reach ADRE."""
+
+    pipeline = OIPMPipeline()
+
+    result = pipeline.process(
+
+        "A dragon standing in a ruined castle.",
+
+        medium="digital painting",
+
+        realism="semi-realistic",
+
+        stylization="dark fantasy",
+
+        linework="bold inked contours",
+
+        shading="controlled cel-shading",
+
+        texture="rich textured brushwork",
+
+        color_treatment="deep blacks with purple accents",
+
+        detail_distribution="high detail on the subject",
+
+        edge_hierarchy="strong subject edges",
+
+        surface_rendering="painterly rendering",
+
+    )
+
+    assert result.artistic_direction is not None
+
+    assert result.visual_intent.artistic_direction.medium == "digital painting"
+
+    assert (
+
+        result.visual_intent.artistic_direction.realism
+
+        == "semi-realistic"
+
+    )
+
+    assert (
+
+        result.visual_intent.artistic_direction.stylization
+
+        == "dark fantasy"
+
+    )
+
+    assert (
+
+        result.visual_intent.artistic_direction.linework
+
+        == "bold inked contours"
+
+    )
+
+    assert (
+
+        result.visual_intent.artistic_direction.shading
+
+        == "controlled cel-shading"
+
+    )
+
+    assert (
+
+        result.visual_intent.artistic_direction.texture
+
+        == "rich textured brushwork"
+
+    )
+
+    assert (
+
+        result.visual_intent.artistic_direction.color_treatment
+
+        == "deep blacks with purple accents"
+
+    )
+
+    assert (
+
+        result.visual_intent.artistic_direction.detail_distribution
+
+        == "high detail on the subject"
+
+    )
+
+    assert (
+
+        result.visual_intent.artistic_direction.edge_hierarchy
+
+        == "strong subject edges"
+
+    )
+
+    assert (
+
+        result.visual_intent.artistic_direction.surface_rendering
+
+        == "painterly rendering"
+
+    )
+
+def test_pipeline_exposes_artistic_direction_result() -> None:
+
+    """PipelineResult should expose the ADRE result."""
+
+    pipeline = OIPMPipeline()
+
+    result = pipeline.process(
+
+        "A warrior beneath moonlight.",
+
+        medium="digital painting",
+
+        realism="semi-realistic",
+
+    )
+
+    assert result.artistic_direction is not None
+
+    assert (
+
+        result.artistic_direction.visual_intent
+
+        is result.visual_intent
+
+    )
+
+    assert (
+
+        result.artistic_direction.artistic_direction
+
+        is result.visual_intent.artistic_direction
+
+    )
+
+def test_pipeline_accepts_custom_artistic_direction_engine() -> None:
+
+    """The pipeline should support dependency injection for ADRE."""
+
+    class TrackingArtisticDirectionEngine(ArtisticDirectionEngine):
+
+        def __init__(self) -> None:
+
+            self.called = False
+
+        def construct(
+
+            self,
+
+            visual_intent: VisualIntent,
+
+            *,
+
+            medium: str | None = None,
+
+            realism: str | None = None,
+
+            stylization: str | None = None,
+
+            linework: str | None = None,
+
+            shading: str | None = None,
+
+            texture: str | None = None,
+
+            color_treatment: str | None = None,
+
+            detail_distribution: str | None = None,
+
+            edge_hierarchy: str | None = None,
+
+            surface_rendering: str | None = None,
+
+        ):
+
+            self.called = True
+
+            return super().construct(
+
+                visual_intent,
+
+                medium=medium,
+
+                realism=realism,
+
+                stylization=stylization,
+
+                linework=linework,
+
+                shading=shading,
+
+                texture=texture,
+
+                color_treatment=color_treatment,
+
+                detail_distribution=detail_distribution,
+
+                edge_hierarchy=edge_hierarchy,
+
+                surface_rendering=surface_rendering,
+
+            )
+
+    artistic_direction_engine = TrackingArtisticDirectionEngine()
+
+    pipeline = OIPMPipeline(
+
+        artistic_direction_engine=artistic_direction_engine,
+
+    )
+
+    result = pipeline.process(
+
+        "A warrior beneath moonlight.",
+
+        medium="digital painting",
+
+    )
+
+    assert artistic_direction_engine.called is True
+
+    assert result.artistic_direction is not None
+
+    assert (
+
+        result.visual_intent.artistic_direction.medium
+
+        == "digital painting"
+
+    )
+
+def test_pipeline_preserves_artistic_direction_conflicts() -> None:
+
+    """Existing artistic direction values should remain authoritative."""
+
+    pipeline = OIPMPipeline()
+
+    result = pipeline.process(
+
+        "A warrior beneath moonlight.",
+
+        medium="digital painting",
+
+    )
+
+    result.visual_intent.artistic_direction.medium = "oil painting"
+
+    second_result = pipeline.artistic_direction_engine.construct(
+
+        result.visual_intent,
+
+        medium="digital painting",
+
+    )
+
+    assert (
+
+        second_result.artistic_direction.medium
+
+        == "oil painting"
+
+    )
+
+    assert len(second_result.warnings) == 1
+
+def test_pipeline_does_not_invent_artistic_direction() -> None:
+
+    """A pipeline call without artistic direction should not invent it."""
+
+    pipeline = OIPMPipeline()
+
+    result = pipeline.process(
+
+        "A warrior standing in a field.",
+
+    )
+
+    assert result.artistic_direction is not None
+
+    assert result.visual_intent.artistic_direction.medium is None
+
+    assert result.visual_intent.artistic_direction.realism is None
+
+    assert result.visual_intent.artistic_direction.stylization is None
+
+    assert result.visual_intent.artistic_direction.linework is None
+
+    assert result.visual_intent.artistic_direction.shading is None
+
+    assert result.visual_intent.artistic_direction.texture is None
+
+    assert (
+
+        result.visual_intent.artistic_direction.color_treatment
+
+        is None
+
+    )
+
+    assert (
+
+        result.visual_intent.artistic_direction.detail_distribution
+
+        is None
+
+    )
+
+    assert result.visual_intent.artistic_direction.edge_hierarchy is None
+
+    assert (
+
+        result.visual_intent.artistic_direction.surface_rendering
+
+        is None
+
+    )
+
 def test_pipeline_assembles_structured_prompt() -> None:
 
     """The pipeline should produce a prompt from the structured intent."""
@@ -366,6 +692,10 @@ def test_pipeline_assembles_structured_prompt() -> None:
 
         intensity="low",
 
+        medium="digital painting",
+
+        realism="semi-realistic",
+
     )
 
     assert isinstance(result.prompt, str)
@@ -381,6 +711,10 @@ def test_pipeline_assembles_structured_prompt() -> None:
     assert "medium shot" in result.prompt
 
     assert "moonlight" in result.prompt
+
+    assert "digital painting" in result.prompt
+
+    assert "semi-realistic" in result.prompt
 
 def test_pipeline_rejects_invalid_input() -> None:
 
@@ -427,6 +761,8 @@ def test_pipeline_returns_validation_failure() -> None:
     assert result.composition is None
 
     assert result.lighting is None
+
+    assert result.artistic_direction is None
 
     assert result.prompt == ""
 
@@ -490,17 +826,33 @@ def test_pipeline_preserves_visual_intent_identity() -> None:
 
         light_source="moonlight",
 
+        medium="digital painting",
+
+        realism="semi-realistic",
+
     )
 
     assert result.interpretation.visual_intent is result.visual_intent
 
     assert result.subject_resolution is not None
 
-    assert result.subject_resolution.visual_intent is result.visual_intent
+    assert (
+
+        result.subject_resolution.visual_intent
+
+        is result.visual_intent
+
+    )
 
     assert result.scene_construction is not None
 
-    assert result.scene_construction.visual_intent is result.visual_intent
+    assert (
+
+        result.scene_construction.visual_intent
+
+        is result.visual_intent
+
+    )
 
     assert result.composition is not None
 
@@ -509,3 +861,13 @@ def test_pipeline_preserves_visual_intent_identity() -> None:
     assert result.lighting is not None
 
     assert result.lighting.visual_intent is result.visual_intent
+
+    assert result.artistic_direction is not None
+
+    assert (
+
+        result.artistic_direction.visual_intent
+
+        is result.visual_intent
+
+    )
