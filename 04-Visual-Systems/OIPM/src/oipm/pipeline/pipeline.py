@@ -34,6 +34,10 @@ Lighting & Atmosphere Construction
 
     ↓
 
+Artistic Direction & Rendering Construction
+
+    ↓
+
 Prompt Assembly
 
     ↓
@@ -51,6 +55,14 @@ visual decisions or overwrite higher-priority existing information.
 from __future__ import annotations
 
 from dataclasses import dataclass
+
+from oipm.artistic_direction import (
+
+    ArtisticDirectionEngine,
+
+    ArtisticDirectionResult,
+
+)
 
 from oipm.assembly import PromptAssembler
 
@@ -94,6 +106,8 @@ class PipelineResult:
 
     lighting: LightingResult | None = None
 
+    artistic_direction: ArtisticDirectionResult | None = None
+
     prompt: str = ""
 
 class OIPMPipeline:
@@ -118,6 +132,8 @@ class OIPMPipeline:
 
         lighting_engine: LightingEngine | None = None,
 
+        artistic_direction_engine: ArtisticDirectionEngine | None = None,
+
         assembler: PromptAssembler | None = None,
 
     ) -> None:
@@ -135,6 +151,12 @@ class OIPMPipeline:
         self.composition_engine = composition_engine or CompositionEngine()
 
         self.lighting_engine = lighting_engine or LightingEngine()
+
+        self.artistic_direction_engine = (
+
+            artistic_direction_engine or ArtisticDirectionEngine()
+
+        )
 
         self.assembler = assembler or PromptAssembler()
 
@@ -191,6 +213,26 @@ class OIPMPipeline:
         volumetric_effects: str | None = None,
 
         environmental_interaction: str | None = None,
+
+        medium: str | None = None,
+
+        realism: str | None = None,
+
+        stylization: str | None = None,
+
+        linework: str | None = None,
+
+        shading: str | None = None,
+
+        texture: str | None = None,
+
+        color_treatment: str | None = None,
+
+        detail_distribution: str | None = None,
+
+        edge_hierarchy: str | None = None,
+
+        surface_rendering: str | None = None,
 
     ) -> PipelineResult:
 
@@ -288,6 +330,32 @@ class OIPMPipeline:
 
         )
 
+        artistic_direction = self.artistic_direction_engine.construct(
+
+            visual_intent,
+
+            medium=medium,
+
+            realism=realism,
+
+            stylization=stylization,
+
+            linework=linework,
+
+            shading=shading,
+
+            texture=texture,
+
+            color_treatment=color_treatment,
+
+            detail_distribution=detail_distribution,
+
+            edge_hierarchy=edge_hierarchy,
+
+            surface_rendering=surface_rendering,
+
+        )
+
         prompt = self.assembler.assemble(visual_intent)
 
         return PipelineResult(
@@ -305,6 +373,8 @@ class OIPMPipeline:
             composition=composition,
 
             lighting=lighting,
+
+            artistic_direction=artistic_direction,
 
             prompt=prompt,
 
