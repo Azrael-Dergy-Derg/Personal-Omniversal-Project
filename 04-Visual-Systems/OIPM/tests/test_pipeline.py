@@ -1,381 +1,511 @@
 """Tests for the OIPM processing pipeline."""
 
-from __future__ import annotations
-
 import pytest
 
-from oipm.composition import CompositionEngine
+from oipm.lighting import LightingEngine
+
+from oipm.models import VisualIntent
 
 from oipm.pipeline import OIPMPipeline, PipelineResult
 
-def test_pipeline_processes_basic_input_end_to_end() -> None:
+def test_pipeline_returns_pipeline_result() -> None:
 
-    """A valid request should pass through every current pipeline stage."""
+    """The pipeline should return a structured PipelineResult."""
 
     pipeline = OIPMPipeline()
 
-    result = pipeline.process(
-
-        "A dark fantasy dragon beneath a moonlit sky."
-
-    )
+    result = pipeline.process("A dragon standing in a ruined castle.")
 
     assert isinstance(result, PipelineResult)
 
-    assert result.validation.valid is True
+def test_pipeline_preserves_input() -> None:
 
-    assert result.validation.issues == ()
+    """The pipeline should preserve the original user input."""
 
-    assert result.composition is not None
+    user_input = "A dragon standing in a ruined castle."
 
-    assert result.prompt != ""
+    pipeline = OIPMPipeline()
 
-def test_pipeline_preserves_user_input() -> None:
+    result = pipeline.process(user_input)
 
-    """The original normalized user input should remain in VisualIntent."""
-
-    user_input = "A dark fantasy dragon beneath a moonlit sky."
-
-    result = OIPMPipeline().process(user_input)
-
-    assert (
-
-        result.interpretation.visual_intent.metadata.user_input
-
-        == user_input
-
-    )
+    assert result.visual_intent.metadata.user_input == user_input
 
 def test_pipeline_preserves_project_and_scene_metadata() -> None:
 
     """Project and scene identifiers should reach VisualIntent metadata."""
 
-    result = OIPMPipeline().process(
+    pipeline = OIPMPipeline()
 
-        "A dragon standing in an ancient ruin.",
+    result = pipeline.process(
 
-        project="TestProject",
+        "A warrior standing in a forest.",
+
+        project_id="project-001",
 
         scene_id="scene-001",
 
     )
 
-    metadata = result.interpretation.visual_intent.metadata
+    assert result.visual_intent.metadata.project_id == "project-001"
 
-    assert metadata.project == "TestProject"
+    assert result.visual_intent.metadata.scene_id == "scene-001"
 
-    assert metadata.scene_id == "scene-001"
+def test_pipeline_executes_subject_resolution() -> None:
 
-def test_pipeline_runs_composition_engine() -> None:
+    """Subject information should be processed through SCRE."""
 
-    """Valid input should produce a CompositionResult."""
+    pipeline = OIPMPipeline()
 
-    result = OIPMPipeline().process(
+    result = pipeline.process(
 
-        "A dragon beneath a moonlit sky.",
+        "A dragon standing in a ruined castle.",
+
+        subject_identity="Azrael",
+
+        subject_type="character",
+
+        species="dragon",
+
+    )
+
+    assert result.subject_resolution is not None
+
+    assert len(result.visual_intent.subjects) == 1
+
+    assert result.visual_intent.subjects[0].identity == "Azrael"
+
+    assert result.visual_intent.subjects[0].subject_type == "character"
+
+    assert result.visual_intent.subjects[0].species == "dragon"
+
+def test_pipeline_executes_scene_construction() -> None:
+
+    """Explicit scene information should be processed through SCE."""
+
+    pipeline = OIPMPipeline()
+
+    result = pipeline.process(
+
+        "A warrior standing in a forest.",
+
+        location="ancient forest",
+
+        time="night",
+
+        weather="rain",
+
+        narrative_context="The warrior is searching for a lost companion.",
+
+    )
+
+    assert result.scene_construction is not None
+
+    assert result.visual_intent.scene.location == "ancient forest"
+
+    assert result.visual_intent.scene.time == "night"
+
+    assert result.visual_intent.scene.weather == "rain"
+
+    assert (
+
+        result.visual_intent.scene.narrative_context
+
+        == "The warrior is searching for a lost companion."
+
+    )
+
+def test_pipeline_executes_composition_engine() -> None:
+
+    """Explicit composition information should reach CCE."""
+
+    pipeline = OIPMPipeline()
+
+    result = pipeline.process(
+
+        "A dragon standing in a ruined castle.",
 
         framing="medium shot",
 
         camera_angle="low angle",
 
-        camera_distance="medium distance",
+        camera_distance="close",
 
         lens="50mm",
 
-        perspective="natural perspective",
+        perspective="dramatic perspective",
 
-        depth_of_field="shallow depth of field",
+        depth_of_field="shallow",
 
     )
 
     assert result.composition is not None
 
-    assert result.composition.composition.framing == "medium shot"
+    assert result.visual_intent.composition.framing == "medium shot"
 
-    assert result.composition.composition.camera_angle == "low angle"
+    assert result.visual_intent.composition.camera_angle == "low angle"
 
-    assert result.composition.composition.camera_distance == "medium distance"
+    assert result.visual_intent.composition.camera_distance == "close"
 
-    assert result.composition.composition.lens == "50mm"
-
-    assert (
-
-        result.composition.composition.perspective
-
-        == "natural perspective"
-
-    )
+    assert result.visual_intent.composition.lens == "50mm"
 
     assert (
 
-        result.composition.composition.depth_of_field
+        result.visual_intent.composition.perspective
 
-        == "shallow depth of field"
+        == "dramatic perspective"
 
     )
 
-def test_pipeline_preserves_existing_composition_values() -> None:
+    assert result.visual_intent.composition.depth_of_field == "shallow"
 
-    """Existing composition values should not be silently overwritten."""
+def test_pipeline_executes_lighting_engine() -> None:
+
+    """Explicit lighting information should reach LAE."""
 
     pipeline = OIPMPipeline()
 
-    interpretation = pipeline.interpreter.process(
+    result = pipeline.process(
 
-        "A dragon beneath a moonlit sky."
+        "A dragon standing in a ruined castle.",
 
-    )
+        light_source="moonlight",
 
-    interpretation.visual_intent.composition.framing = "close-up"
+        direction="from camera left",
 
-    pipeline.validator.validate(
+        intensity="low",
 
-        interpretation.visual_intent
+        color_temperature="cool",
 
-    )
+        contrast="high",
 
-    composition = pipeline.composition_engine.construct(
+        atmospheric_effects="light mist",
 
-        interpretation.visual_intent,
+        volumetric_effects="subtle",
 
-        framing="wide shot",
-
-    )
-
-    assert composition.composition.framing == "close-up"
-
-    assert composition.warnings == (
-
-        "Existing composition framing conflicts with "
-
-        "supplied framing; existing value was preserved.",
+        environmental_interaction="light catches wet stone",
 
     )
 
-def test_pipeline_generates_prompt_from_structured_intent() -> None:
+    assert result.lighting is not None
 
-    """Prompt output should be produced from the assembled VisualIntent."""
+    assert result.visual_intent.lighting.light_source == "moonlight"
 
-    pipeline = OIPMPipeline()
+    assert result.visual_intent.lighting.direction == "from camera left"
 
-    interpretation = pipeline.interpreter.process(
+    assert result.visual_intent.lighting.intensity == "low"
 
-        "A dragon beneath a moonlit sky."
+    assert result.visual_intent.lighting.color_temperature == "cool"
 
-    )
+    assert result.visual_intent.lighting.contrast == "high"
 
-    subject = interpretation.visual_intent.subjects
+    assert result.visual_intent.lighting.atmospheric_effects == "light mist"
 
-    assert subject == []
-
-    interpretation.visual_intent.scene.location = "an ancient ruin"
-
-    interpretation.visual_intent.scene.weather = "moonlit sky"
-
-    validation = pipeline.validate_interpretation(
-
-        interpretation
-
-    )
-
-    assert validation.valid is True
-
-    prompt = pipeline.assembler.assemble(
-
-        interpretation.visual_intent
-
-    )
-
-    assert "Scene:" in prompt
-
-    assert "an ancient ruin" in prompt
-
-    assert "moonlit sky" in prompt
-
-def test_pipeline_does_not_generate_prompt_for_invalid_intent() -> None:
-
-    """Invalid VisualIntent state should prevent later pipeline stages."""
-
-    pipeline = OIPMPipeline()
-
-    interpretation = pipeline.interpreter.process(
-
-        "A valid image request."
-
-    )
-
-    interpretation.visual_intent.metadata.user_input = ""
-
-    validation = pipeline.validator.validate(
-
-        interpretation.visual_intent
-
-    )
-
-    pipeline_result = PipelineResult(
-
-        interpretation=interpretation,
-
-        validation=validation,
-
-        composition=None,
-
-        prompt="",
-
-    )
-
-    assert pipeline_result.validation.valid is False
-
-    assert pipeline_result.composition is None
-
-    assert pipeline_result.prompt == ""
-
-def test_pipeline_does_not_run_composition_for_invalid_intent() -> None:
-
-    """Invalid intent should prevent composition processing."""
-
-    pipeline = OIPMPipeline()
-
-    interpretation = pipeline.interpreter.process(
-
-        "A valid image request."
-
-    )
-
-    interpretation.visual_intent.metadata.user_input = ""
-
-    validation = pipeline.validator.validate(
-
-        interpretation.visual_intent
-
-    )
-
-    assert validation.valid is False
-
-    composition = None
-
-    if validation.valid:
-
-        composition = pipeline.composition_engine.construct(
-
-            interpretation.visual_intent,
-
-        )
-
-    assert composition is None
-
-def test_pipeline_reports_short_input_warning() -> None:
-
-    """Very short input should preserve the interpreter warning."""
-
-    result = OIPMPipeline().process("dragon")
+    assert result.visual_intent.lighting.volumetric_effects == "subtle"
 
     assert (
 
-        "Input is very short and may require additional "
+        result.visual_intent.lighting.environmental_interaction
 
-        "interpretation or clarification."
-
-        in result.interpretation.warnings
+        == "light catches wet stone"
 
     )
 
-def test_pipeline_accepts_normal_input_without_warning() -> None:
+def test_pipeline_exposes_lighting_result() -> None:
 
-    """Normal-length input should not produce the short-input warning."""
-
-    result = OIPMPipeline().process(
-
-        "A dragon warrior standing beneath a moonlit sky."
-
-    )
-
-    assert result.interpretation.warnings == ()
-
-def test_pipeline_validation_messages_are_available() -> None:
-
-    """Validation messages should be exposed in stable order."""
+    """PipelineResult should expose the LAE result."""
 
     pipeline = OIPMPipeline()
 
-    interpretation = pipeline.interpreter.process(
+    result = pipeline.process(
 
-        "A valid image request."
+        "A warrior beneath moonlight.",
 
-    )
+        light_source="moonlight",
 
-    interpretation.visual_intent.metadata.user_input = ""
-
-    validation = pipeline.validator.validate(
-
-        interpretation.visual_intent
+        intensity="moderate",
 
     )
 
-    messages = pipeline.validation_messages(validation)
+    assert result.lighting is not None
 
-    assert len(messages) == len(validation.issues)
+    assert result.lighting.visual_intent is result.visual_intent
 
-    for message, issue in zip(messages, validation.issues):
+    assert result.lighting.lighting is result.visual_intent.lighting
 
-        assert message == issue.message
+def test_pipeline_accepts_custom_lighting_engine() -> None:
 
-def test_pipeline_validation_issues_are_available() -> None:
+    """The pipeline should support dependency injection for LAE."""
 
-    """Structured validation issues should remain accessible."""
+    class TrackingLightingEngine(LightingEngine):
 
-    pipeline = OIPMPipeline()
+        def __init__(self) -> None:
 
-    interpretation = pipeline.interpreter.process(
+            self.called = False
 
-        "A valid image request."
+        def construct(
 
-    )
+            self,
 
-    interpretation.visual_intent.metadata.user_input = ""
+            visual_intent: VisualIntent,
 
-    validation = pipeline.validator.validate(
+            *,
 
-        interpretation.visual_intent
+            light_source: str | None = None,
 
-    )
+            direction: str | None = None,
 
-    issues = pipeline.validation_issues(validation)
+            intensity: str | None = None,
 
-    assert issues == validation.issues
+            color_temperature: str | None = None,
 
-def test_pipeline_rejects_empty_input() -> None:
+            contrast: str | None = None,
 
-    """Empty input should be rejected by the input interpreter."""
+            atmospheric_effects: str | None = None,
 
-    with pytest.raises(ValueError):
+            volumetric_effects: str | None = None,
 
-        OIPMPipeline().process("")
+            environmental_interaction: str | None = None,
 
-def test_pipeline_rejects_non_string_input() -> None:
+        ):
 
-    """Non-string input should be rejected by the input interpreter."""
+            self.called = True
 
-    with pytest.raises(ValueError):
+            return super().construct(
 
-        OIPMPipeline().process(123)  # type: ignore[arg-type]
+                visual_intent,
 
-def test_pipeline_supports_component_injection() -> None:
+                light_source=light_source,
 
-    """Pipeline components should be replaceable for extensibility."""
+                direction=direction,
 
-    composition_engine = CompositionEngine()
+                intensity=intensity,
+
+                color_temperature=color_temperature,
+
+                contrast=contrast,
+
+                atmospheric_effects=atmospheric_effects,
+
+                volumetric_effects=volumetric_effects,
+
+                environmental_interaction=environmental_interaction,
+
+            )
+
+    lighting_engine = TrackingLightingEngine()
 
     pipeline = OIPMPipeline(
 
-        composition_engine=composition_engine,
+        lighting_engine=lighting_engine,
 
     )
 
-    assert pipeline.interpreter is not None
+    result = pipeline.process(
 
-    assert pipeline.validator is not None
+        "A warrior beneath moonlight.",
 
-    assert pipeline.composition_engine is composition_engine
+        light_source="moonlight",
 
-    assert pipeline.assembler is not None
+    )
+
+    assert lighting_engine.called is True
+
+    assert result.lighting is not None
+
+    assert result.visual_intent.lighting.light_source == "moonlight"
+
+def test_pipeline_preserves_lighting_conflicts() -> None:
+
+    """Existing lighting values should remain authoritative on conflict."""
+
+    pipeline = OIPMPipeline()
+
+    result = pipeline.process(
+
+        "A warrior beneath sunlight.",
+
+        light_source="moonlight",
+
+    )
+
+    result.visual_intent.lighting.light_source = "sunlight"
+
+    second_result = pipeline.lighting_engine.construct(
+
+        result.visual_intent,
+
+        light_source="moonlight",
+
+    )
+
+    assert second_result.lighting.light_source == "sunlight"
+
+    assert len(second_result.warnings) == 1
+
+def test_pipeline_assembles_structured_prompt() -> None:
+
+    """The pipeline should produce a prompt from the structured intent."""
+
+    pipeline = OIPMPipeline()
+
+    result = pipeline.process(
+
+        "A dragon standing in a ruined castle.",
+
+        subject_identity="Azrael",
+
+        subject_type="character",
+
+        species="dragon",
+
+        location="ruined castle",
+
+        framing="medium shot",
+
+        light_source="moonlight",
+
+        intensity="low",
+
+    )
+
+    assert isinstance(result.prompt, str)
+
+    assert result.prompt != ""
+
+    assert "Azrael" in result.prompt
+
+    assert "dragon" in result.prompt
+
+    assert "ruined castle" in result.prompt
+
+    assert "medium shot" in result.prompt
+
+    assert "moonlight" in result.prompt
+
+def test_pipeline_rejects_invalid_input() -> None:
+
+    """The pipeline should reject invalid user input."""
+
+    pipeline = OIPMPipeline()
+
+    with pytest.raises(TypeError):
+
+        pipeline.process(None)  # type: ignore[arg-type]
+
+def test_pipeline_returns_validation_failure() -> None:
+
+    """Invalid VisualIntent state should stop downstream processing."""
+
+    class InvalidatingValidator:
+
+        def validate(self, visual_intent: VisualIntent):
+
+            from oipm.validation import ValidationResult
+
+            return ValidationResult(
+
+                is_valid=False,
+
+                issues=[],
+
+            )
+
+    pipeline = OIPMPipeline(
+
+        validator=InvalidatingValidator(),  # type: ignore[arg-type]
+
+    )
+
+    result = pipeline.process("A dragon.")
+
+    assert result.validation.is_valid is False
+
+    assert result.subject_resolution is None
+
+    assert result.scene_construction is None
+
+    assert result.composition is None
+
+    assert result.lighting is None
+
+    assert result.prompt == ""
+
+def test_pipeline_short_input_preserves_warning() -> None:
+
+    """Short input warnings should survive the complete pipeline."""
+
+    pipeline = OIPMPipeline()
+
+    result = pipeline.process("Hi")
+
+    assert any(
+
+        "short" in warning.lower()
+
+        for warning in result.interpretation.warnings
+
+    )
+
+def test_pipeline_does_not_invent_lighting() -> None:
+
+    """A pipeline call without lighting input should not invent lighting."""
+
+    pipeline = OIPMPipeline()
+
+    result = pipeline.process("A warrior standing in a field.")
+
+    assert result.lighting is not None
+
+    assert result.visual_intent.lighting.light_source is None
+
+    assert result.visual_intent.lighting.direction is None
+
+    assert result.visual_intent.lighting.intensity is None
+
+    assert result.visual_intent.lighting.color_temperature is None
+
+    assert result.visual_intent.lighting.contrast is None
+
+    assert result.visual_intent.lighting.atmospheric_effects is None
+
+    assert result.visual_intent.lighting.volumetric_effects is None
+
+    assert result.visual_intent.lighting.environmental_interaction is None
+
+def test_pipeline_preserves_visual_intent_identity() -> None:
+
+    """All pipeline stages should operate on the same VisualIntent."""
+
+    pipeline = OIPMPipeline()
+
+    result = pipeline.process(
+
+        "A dragon beneath moonlight.",
+
+        subject_identity="Azrael",
+
+        location="ancient ruins",
+
+        framing="close-up",
+
+        light_source="moonlight",
+
+    )
+
+    assert result.interpretation.visual_intent is result.visual_intent
+
+    assert result.subject_resolution is not None
+
+    assert result.subject_resolution.visual_intent is result.visual_intent
+
+    assert result.scene_construction is not None
+
+    assert result.scene_construction.visual_intent is result.visual_intent
+
+    assert result.composition is not None
+
+    assert result.composition.visual_intent is result.visual_intent
+
+    assert result.lighting is not None
+
+    assert result.lighting.visual_intent is result.visual_intent
