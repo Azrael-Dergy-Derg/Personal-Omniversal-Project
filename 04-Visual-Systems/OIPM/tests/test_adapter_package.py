@@ -10,6 +10,8 @@ from oipm.adapters import (
 
     GeneratorAdapterResult,
 
+    StubGeneratorAdapter,
+
 )
 
 def test_adapter_registry_is_publicly_exported() -> None:
@@ -44,6 +46,14 @@ def test_generator_adapter_result_is_publicly_exported() -> None:
 
     assert result.warnings == []
 
+def test_stub_generator_adapter_is_publicly_exported() -> None:
+
+    adapter = StubGeneratorAdapter()
+
+    assert isinstance(adapter, StubGeneratorAdapter)
+
+    assert adapter.generator_name == "stub-generator"
+
 def test_public_exports_are_available_from_expected_module() -> None:
 
     import oipm.adapters as adapters
@@ -53,3 +63,5 @@ def test_public_exports_are_available_from_expected_module() -> None:
     assert adapters.GeneratorAdapter is GeneratorAdapter
 
     assert adapters.GeneratorAdapterResult is GeneratorAdapterResult
+
+    assert adapters.StubGeneratorAdapter is StubGeneratorAdapter
