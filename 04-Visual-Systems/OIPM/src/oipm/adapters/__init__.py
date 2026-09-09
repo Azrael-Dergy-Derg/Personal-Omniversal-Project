@@ -36,6 +36,8 @@ from .generator_adapter import (
 
 )
 
+from .stub_generator_adapter import StubGeneratorAdapter
+
 __all__ = [
 
     "AdapterRegistry",
@@ -43,5 +45,7 @@ __all__ = [
     "GeneratorAdapter",
 
     "GeneratorAdapterResult",
+
+    "StubGeneratorAdapter",
 
 ]
