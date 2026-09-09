@@ -38,6 +38,10 @@ Artistic Direction & Rendering Construction
 
     ↓
 
+Constraint, Conflict & Consistency Processing
+
+    ↓
+
 Prompt Assembly
 
     ↓
@@ -68,11 +72,13 @@ from oipm.assembly import PromptAssembler
 
 from oipm.composition import CompositionEngine, CompositionResult
 
+from oipm.constraints import ConstraintEngine, ConstraintResult
+
 from oipm.interpretation import InputInterpreter, InterpretationResult
 
 from oipm.lighting import LightingEngine, LightingResult
 
-from oipm.models import VisualIntent
+from oipm.models import Priority, Source, VisualIntent
 
 from oipm.scene import SceneConstructionResult, SceneConstructor
 
@@ -108,6 +114,8 @@ class PipelineResult:
 
     artistic_direction: ArtisticDirectionResult | None = None
 
+    constraint_processing: ConstraintResult | None = None
+
     prompt: str = ""
 
 class OIPMPipeline:
@@ -134,6 +142,8 @@ class OIPMPipeline:
 
         artistic_direction_engine: ArtisticDirectionEngine | None = None,
 
+        constraint_engine: ConstraintEngine | None = None,
+
         assembler: PromptAssembler | None = None,
 
     ) -> None:
@@ -157,6 +167,8 @@ class OIPMPipeline:
             artistic_direction_engine or ArtisticDirectionEngine()
 
         )
+
+        self.constraint_engine = constraint_engine or ConstraintEngine()
 
         self.assembler = assembler or PromptAssembler()
 
@@ -233,6 +245,18 @@ class OIPMPipeline:
         edge_hierarchy: str | None = None,
 
         surface_rendering: str | None = None,
+
+        constraint_type: str | None = None,
+
+        constraint_target: str | None = None,
+
+        constraint_requirement: str | None = None,
+
+        constraint_priority: Priority = Priority.HIGH,
+
+        constraint_source: Source = Source.EXPLICIT_USER,
+
+        constraint_resolution: str | None = None,
 
     ) -> PipelineResult:
 
@@ -356,6 +380,24 @@ class OIPMPipeline:
 
         )
 
+        constraint_processing = self.constraint_engine.construct(
+
+            visual_intent,
+
+            constraint_type=constraint_type,
+
+            target=constraint_target,
+
+            requirement=constraint_requirement,
+
+            priority=constraint_priority,
+
+            source=constraint_source,
+
+            resolution=constraint_resolution,
+
+        )
+
         prompt = self.assembler.assemble(visual_intent)
 
         return PipelineResult(
@@ -375,6 +417,8 @@ class OIPMPipeline:
             lighting=lighting,
 
             artistic_direction=artistic_direction,
+
+            constraint_processing=constraint_processing,
 
             prompt=prompt,
 
