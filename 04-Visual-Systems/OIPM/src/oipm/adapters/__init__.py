@@ -26,6 +26,8 @@ within this package.
 
 from __future__ import annotations
 
+from .adapter_registry import AdapterRegistry
+
 from .generator_adapter import (
 
     GeneratorAdapter,
@@ -35,6 +37,8 @@ from .generator_adapter import (
 )
 
 __all__ = [
+
+    "AdapterRegistry",
 
     "GeneratorAdapter",
 
