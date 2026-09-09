@@ -26,4 +26,18 @@ within this package.
 
 from __future__ import annotations
 
-__all__: list[str] = []
+from .generator_adapter import (
+
+    GeneratorAdapter,
+
+    GeneratorAdapterResult,
+
+)
+
+__all__ = [
+
+    "GeneratorAdapter",
+
+    "GeneratorAdapterResult",
+
+]
