@@ -4,35 +4,57 @@ The PromptAssembler converts structured VisualIntent data into a
 
 deterministic natural-language image-generation prompt.
 
-This initial implementation is intentionally conservative. It does not:
+PAOE is intentionally downstream of interpretation, validation, subject
 
-- invent unspecified visual information
+resolution, scene construction, composition, lighting, artistic direction,
 
-- resolve ambiguity
+and constraint processing.
 
-- alter canon
+This implementation:
 
-- make independent artistic decisions
+- treats VisualIntent as the authoritative source of truth
 
-- apply generator-specific syntax
+- preserves explicitly supplied structured information
 
-- optimize prompts for a specific image model
+- emits deterministic output
 
-Those responsibilities belong to later OIPM systems.
+- preserves section ordering
+
+- includes structured composition and lighting data
+
+- preserves constraint metadata when useful to the prompt
+
+- does not invent unspecified visual information
+
+- does not resolve ambiguity
+
+- does not alter canon
+
+- does not make independent artistic decisions
+
+- does not apply generator-specific syntax
+
+- does not optimize for a specific image generator
+
+Generator-specific optimization belongs to the Generator Adaptation Layer
+
+(GAL), which is downstream of PAOE.
 
 """
 
 from __future__ import annotations
 
+from typing import Any
+
 from oipm.models import Attribute, VisualIntent
 
 class PromptAssembler:
 
-    """Assemble a prompt from an OIPM VisualIntent."""
+    """Assemble a deterministic prompt from an OIPM VisualIntent."""
 
     name = "PromptAssembler"
 
-    version = "0.1.0"
+    version = "0.2.0"
 
     def assemble(self, visual_intent: VisualIntent) -> str:
 
@@ -166,13 +188,21 @@ class PromptAssembler:
 
                 parts.append(str(subject.action.value))
 
-            if parts:
+            if subject.spatial_position:
 
-                subject_descriptions.append(
+                parts.append(
 
-                    " ".join(parts)
+                    PromptAssembler._format_mapping(
+
+                        subject.spatial_position
+
+                    )
 
                 )
+
+            if parts:
+
+                subject_descriptions.append(" ".join(parts))
 
         if not subject_descriptions:
 
@@ -236,13 +266,89 @@ class PromptAssembler:
 
             parts.append(composition.shot_type)
 
+        if composition.camera_position:
+
+            parts.append(
+
+                PromptAssembler._format_mapping(
+
+                    composition.camera_position
+
+                )
+
+            )
+
         if composition.perspective:
 
             parts.append(composition.perspective)
 
+        if composition.subject_placement:
+
+            parts.append(
+
+                PromptAssembler._format_mapping(
+
+                    composition.subject_placement
+
+                )
+
+            )
+
+        if composition.focal_hierarchy:
+
+            parts.append(
+
+                "focal hierarchy: "
+
+                + ", ".join(str(item) for item in composition.focal_hierarchy)
+
+            )
+
+        if composition.foreground:
+
+            parts.append(
+
+                "foreground: "
+
+                + ", ".join(composition.foreground)
+
+            )
+
+        if composition.midground:
+
+            parts.append(
+
+                "midground: "
+
+                + ", ".join(composition.midground)
+
+            )
+
+        if composition.background:
+
+            parts.append(
+
+                "background: "
+
+                + ", ".join(composition.background)
+
+            )
+
         if composition.depth_of_field:
 
             parts.append(composition.depth_of_field)
+
+        if composition.motion:
+
+            parts.append(
+
+                PromptAssembler._format_mapping(
+
+                    composition.motion
+
+                )
+
+            )
 
         if composition.negative_space:
 
@@ -268,6 +374,22 @@ class PromptAssembler:
 
             parts.append(lighting.intent)
 
+        if lighting.sources:
+
+            parts.append(
+
+                "sources: "
+
+                + "; ".join(
+
+                    PromptAssembler._format_mapping(source)
+
+                    for source in lighting.sources
+
+                )
+
+            )
+
         if lighting.direction:
 
             parts.append(lighting.direction)
@@ -283,6 +405,18 @@ class PromptAssembler:
         if lighting.color_temperature:
 
             parts.append(lighting.color_temperature)
+
+        if lighting.shadows:
+
+            parts.append(
+
+                PromptAssembler._format_mapping(
+
+                    lighting.shadows
+
+                )
+
+            )
 
         parts.extend(lighting.atmosphere)
 
@@ -360,17 +494,37 @@ class PromptAssembler:
 
         """Assemble explicitly defined image constraints."""
 
-        requirements: list[str] = []
+        constraints: list[str] = []
 
         for constraint in visual_intent.constraints:
 
-            requirements.append(constraint.requirement)
+            parts: list[str] = []
 
-        if not requirements:
+            if constraint.type:
+
+                parts.append(constraint.type)
+
+            if constraint.target:
+
+                parts.append("target=" + constraint.target)
+
+            if constraint.requirement:
+
+                parts.append(constraint.requirement)
+
+            if constraint.resolution:
+
+                parts.append("resolution=" + constraint.resolution)
+
+            if parts:
+
+                constraints.append(" ".join(parts))
+
+        if not constraints:
 
             return ""
 
-        return "Constraints: " + "; ".join(requirements) + "."
+        return "Constraints: " + "; ".join(constraints) + "."
 
     @staticmethod
 
@@ -391,3 +545,35 @@ class PromptAssembler:
             if attribute.value is not None
 
         ]
+
+    @staticmethod
+
+    def _format_mapping(values: dict[str, Any]) -> str:
+
+        """Format structured values deterministically.
+
+        Dictionary insertion order is preserved by Python, while keys are
+
+        explicitly sorted here so equivalent mappings produce stable prompt
+
+        output regardless of construction order.
+
+        Values are rendered using their existing representation only. This
+
+        helper does not infer or expand information.
+
+        """
+
+        if not values:
+
+            return ""
+
+        items = [
+
+            f"{key}={values[key]}"
+
+            for key in sorted(values)
+
+        ]
+
+        return ", ".join(items)
