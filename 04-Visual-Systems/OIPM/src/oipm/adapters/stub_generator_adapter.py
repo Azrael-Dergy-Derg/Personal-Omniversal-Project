@@ -4,7 +4,29 @@ This module provides a minimal concrete GeneratorAdapter implementation
 
 used to establish and test the concrete-adapter pattern.
 
-It is intentionally not tied to any external image-generation service.
+The adapter intentionally remains generator-neutral and does not represent
+
+a real external image-generation service.
+
+The purpose of this adapter is to demonstrate the Generator Adaptation
+
+Layer boundary:
+
+    VisualIntent -> generator-specific representation
+
+It must not:
+
+- reinterpret visual intent,
+
+- invent visual information,
+
+- modify canon,
+
+- resolve upstream conflicts,
+
+- assemble a production prompt,
+
+- or optimize for a real image generator.
 
 """
 
@@ -24,11 +46,13 @@ class StubGeneratorAdapter(GeneratorAdapter):
 
     """Minimal concrete adapter for development and testing.
 
-    This adapter demonstrates the expected shape of a generator-specific
+    This adapter demonstrates how a concrete generator adapter can
 
-    implementation without introducing generator-specific behavior into
+    translate existing VisualIntent data into a deterministic output
 
-    the core OIPM pipeline.
+    representation without becoming another interpretation or prompt
+
+    assembly layer.
 
     """
 
@@ -42,23 +66,87 @@ class StubGeneratorAdapter(GeneratorAdapter):
 
     def adapt(self, visual_intent: VisualIntent) -> GeneratorAdapterResult:
 
-        """Adapt VisualIntent into a minimal generator representation.
+        """Adapt VisualIntent into a deterministic test representation.
 
-        The adapter performs no interpretation or visual invention. It
+        The adapter reads existing VisualIntent data only. It does not
 
-        simply demonstrates the concrete GeneratorAdapter contract.
+        infer missing information, alter the supplied model, or assemble
+
+        a production prompt.
+
+        Args:
+
+            visual_intent: Validated, generator-neutral OIPM visual intent.
+
+        Returns:
+
+            GeneratorAdapterResult containing a deterministic
+
+            generator-neutral test representation.
+
+        Raises:
+
+            TypeError: If the supplied value is not a VisualIntent.
 
         """
 
         self._validate_input(visual_intent)
 
+        subject_count = len(visual_intent.subjects)
+
+        has_scene = visual_intent.scene is not None
+
+        has_composition = visual_intent.composition is not None
+
+        has_lighting = visual_intent.lighting is not None
+
+        has_artistic_direction = (
+
+            visual_intent.artistic_direction is not None
+
+        )
+
+        constraint_count = len(visual_intent.constraints)
+
+        prompt = (
+
+            "stub-generator representation: "
+
+            f"subjects={subject_count}; "
+
+            f"scene={has_scene}; "
+
+            f"composition={has_composition}; "
+
+            f"lighting={has_lighting}; "
+
+            f"artistic_direction={has_artistic_direction}; "
+
+            f"constraints={constraint_count}"
+
+        )
+
         return GeneratorAdapterResult(
 
             generator=self.generator_name,
 
-            prompt="stub prompt",
+            prompt=prompt,
 
-            parameters={},
+            parameters={
+
+                "subject_count": subject_count,
+
+                "has_scene": has_scene,
+
+                "has_composition": has_composition,
+
+                "has_lighting": has_lighting,
+
+                "has_artistic_direction": has_artistic_direction,
+
+                "constraint_count": constraint_count,
+
+            },
 
             warnings=[],
 
