@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from oipm.adapters import (
 
+    AdapterExecutor,
+
     AdapterRegistry,
 
     GeneratorAdapter,
@@ -13,6 +15,14 @@ from oipm.adapters import (
     StubGeneratorAdapter,
 
 )
+
+def test_adapter_executor_is_publicly_exported() -> None:
+
+    registry = AdapterRegistry()
+
+    executor = AdapterExecutor(registry)
+
+    assert isinstance(executor, AdapterExecutor)
 
 def test_adapter_registry_is_publicly_exported() -> None:
 
@@ -57,6 +67,8 @@ def test_stub_generator_adapter_is_publicly_exported() -> None:
 def test_public_exports_are_available_from_expected_module() -> None:
 
     import oipm.adapters as adapters
+
+    assert adapters.AdapterExecutor is AdapterExecutor
 
     assert adapters.AdapterRegistry is AdapterRegistry
 
