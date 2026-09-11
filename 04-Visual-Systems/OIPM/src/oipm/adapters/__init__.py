@@ -26,6 +26,8 @@ within this package.
 
 from __future__ import annotations
 
+from .adapter_executor import AdapterExecutor
+
 from .adapter_registry import AdapterRegistry
 
 from .generator_adapter import (
@@ -39,6 +41,8 @@ from .generator_adapter import (
 from .stub_generator_adapter import StubGeneratorAdapter
 
 __all__ = [
+
+    "AdapterExecutor",
 
     "AdapterRegistry",
 
