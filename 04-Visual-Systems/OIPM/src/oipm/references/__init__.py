@@ -12,6 +12,36 @@ become canon or replace VisualIntent as the source of truth.
 
 from __future__ import annotations
 
+from .consistency_checker import (
+
+    ConsistencyChecker,
+
+    ConsistencyFinding,
+
+    ConsistencyStatus,
+
+)
+
+from .consistency_comparator import (
+
+    ComparisonFinding,
+
+    ComparisonStatus,
+
+    ConsistencyComparator,
+
+)
+
+from .conflict_report import (
+
+    Conflict,
+
+    ConflictReport,
+
+    ConflictReporter,
+
+)
+
 from .reference_model import (
 
     Reference,
@@ -22,9 +52,31 @@ from .reference_model import (
 
 )
 
+from .reference_registry import ReferenceRegistry
+
 __all__ = [
 
+    "ComparisonFinding",
+
+    "ComparisonStatus",
+
+    "ConsistencyChecker",
+
+    "ConsistencyComparator",
+
+    "ConsistencyFinding",
+
+    "ConsistencyStatus",
+
+    "Conflict",
+
+    "ConflictReport",
+
+    "ConflictReporter",
+
     "Reference",
+
+    "ReferenceRegistry",
 
     "ReferenceRole",
 
