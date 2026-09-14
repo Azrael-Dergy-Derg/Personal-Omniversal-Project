@@ -54,6 +54,14 @@ from .reference_model import (
 
 from .reference_registry import ReferenceRegistry
 
+from .reference_system import (
+
+    ReferenceAnalysis,
+
+    ReferenceConsistencySystem,
+
+)
+
 __all__ = [
 
     "ComparisonFinding",
@@ -75,6 +83,10 @@ __all__ = [
     "ConflictReporter",
 
     "Reference",
+
+    "ReferenceAnalysis",
+
+    "ReferenceConsistencySystem",
 
     "ReferenceRegistry",
 
