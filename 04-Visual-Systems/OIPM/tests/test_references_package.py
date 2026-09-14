@@ -1,10 +1,10 @@
-"""Integration tests for the OIPM references package."""
+"""Package-level tests for the OIPM Reference & Consistency System."""
 
 from __future__ import annotations
 
 import oipm.references as references
 
-def test_reference_package_exports_reference_model() -> None:
+def test_reference_package_exports_core_types() -> None:
 
     assert references.Reference is not None
 
@@ -12,11 +12,9 @@ def test_reference_package_exports_reference_model() -> None:
 
     assert references.ReferenceType is not None
 
-def test_reference_package_exports_registry() -> None:
-
     assert references.ReferenceRegistry is not None
 
-def test_reference_package_exports_consistency_checker() -> None:
+def test_reference_package_exports_consistency_types() -> None:
 
     assert references.ConsistencyChecker is not None
 
@@ -24,21 +22,25 @@ def test_reference_package_exports_consistency_checker() -> None:
 
     assert references.ConsistencyStatus is not None
 
-def test_reference_package_exports_consistency_comparator() -> None:
-
     assert references.ConsistencyComparator is not None
 
     assert references.ComparisonFinding is not None
 
     assert references.ComparisonStatus is not None
 
-def test_reference_package_exports_conflict_reporting() -> None:
+def test_reference_package_exports_conflict_types() -> None:
 
     assert references.Conflict is not None
 
     assert references.ConflictReport is not None
 
     assert references.ConflictReporter is not None
+
+def test_reference_package_exports_orchestration_types() -> None:
+
+    assert references.ReferenceAnalysis is not None
+
+    assert references.ReferenceConsistencySystem is not None
 
 def test_reference_package_defines_expected_public_api() -> None:
 
@@ -63,6 +65,10 @@ def test_reference_package_defines_expected_public_api() -> None:
         "ConflictReporter",
 
         "Reference",
+
+        "ReferenceAnalysis",
+
+        "ReferenceConsistencySystem",
 
         "ReferenceRegistry",
 
