@@ -8,15 +8,9 @@ from oipm.references import (
 
     ComparisonStatus,
 
-    ConflictReporter,
-
-    ConsistencyChecker,
-
-    ConsistencyComparator,
-
     Reference,
 
-    ReferenceRegistry,
+    ReferenceConsistencySystem,
 
     ReferenceRole,
 
@@ -26,89 +20,37 @@ from oipm.references import (
 
 def make_visual_intent() -> VisualIntent:
 
-    """Create a minimal VisualIntent for integration testing."""
+    """Create a minimal valid VisualIntent."""
 
     return VisualIntent(
 
-        user_input="Test visual intent",
+        user_input="Create a dark-fantasy character portrait.",
 
     )
 
-def test_reference_can_flow_through_registry_and_comparison() -> None:
+def make_reference() -> Reference:
 
-    registry = ReferenceRegistry()
+    """Create a representative style reference."""
 
-    reference = Reference(
+    return Reference(
 
-        reference_id="azrael-reference",
+        reference_id="dark-fantasy-reference",
 
-        reference_type=ReferenceType.CHARACTER,
+        reference_type=ReferenceType.STYLE,
 
-        source="approved character reference",
+        source="test-reference-source",
 
         roles=frozenset(
 
             {
 
-                ReferenceRole.APPEARANCE,
+                ReferenceRole.STYLE,
 
-                ReferenceRole.ANATOMY,
-
-            }
-
-        ),
-
-        description="Adult anthropomorphic dragon.",
-
-        tags=frozenset(
-
-            {
-
-                "dragon",
-
-                "anthropomorphic",
+                ReferenceRole.CONTINUITY,
 
             }
 
         ),
-
-        authoritative=True,
-
-    )
-
-    registry.register(reference)
-
-    stored_reference = registry.get("azrael-reference")
-
-    assert stored_reference is reference
-
-    visual_intent = make_visual_intent()
-
-    checker = ConsistencyChecker()
-
-    structural_findings = checker.check(
-
-        stored_reference,
-
-        visual_intent,
-
-    )
-
-    assert isinstance(structural_findings, tuple)
-
-def test_reference_can_flow_through_full_comparison_pipeline() -> None:
-
-    registry = ReferenceRegistry()
-
-    reference = Reference(
-
-        reference_id="style-reference",
-
-        reference_type=ReferenceType.STYLE,
-
-        source="approved style reference",
-
-        roles=frozenset({ReferenceRole.STYLE}),
 
         description="Dark-fantasy graphic-novel rendering.",
 
@@ -126,7 +68,11 @@ def test_reference_can_flow_through_full_comparison_pipeline() -> None:
 
     )
 
-    registry.register(reference)
+def test_complete_rcs_match_flow() -> None:
+
+    system = ReferenceConsistencySystem()
+
+    reference = make_reference()
 
     visual_intent = make_visual_intent()
 
@@ -144,344 +90,354 @@ def test_reference_can_flow_through_full_comparison_pipeline() -> None:
 
     ]
 
-    stored_reference = registry.get("style-reference")
+    system.register(reference)
 
-    comparator = ConsistencyComparator()
+    analysis = system.analyze(
 
-    findings = comparator.compare(
-
-        stored_reference,
+        "dark-fantasy-reference",
 
         visual_intent,
 
     )
 
-    assert len(findings) == 2
+    assert analysis.reference_id == "dark-fantasy-reference"
+
+    assert len(analysis.structural_findings) == 2
+
+    assert all(
+
+        finding.matchable
+
+        for finding in analysis.structural_findings
+
+    )
+
+    assert len(analysis.comparison_findings) == 2
 
     assert all(
 
         finding.status is ComparisonStatus.MATCH
 
-        for finding in findings
+        for finding in analysis.comparison_findings
 
     )
 
-    reporter = ConflictReporter()
+    assert analysis.conflict_report.conflict_count == 0
 
-    report = reporter.build_report(findings)
+def test_complete_rcs_mismatch_flow() -> None:
 
-    assert report.finding_count == 2
+    system = ReferenceConsistencySystem()
 
-    assert report.conflict_count == 0
-
-    assert report.conflicts == ()
-
-def test_full_pipeline_reports_mismatch_without_resolving_it() -> None:
-
-    registry = ReferenceRegistry()
-
-    reference = Reference(
-
-        reference_id="style-reference",
-
-        reference_type=ReferenceType.STYLE,
-
-        source="approved style reference",
-
-        description="Dark-fantasy graphic-novel rendering.",
-
-        tags=frozenset({"dark-fantasy"}),
-
-    )
-
-    registry.register(reference)
+    reference = make_reference()
 
     visual_intent = make_visual_intent()
 
     visual_intent.metadata["reference_description"] = (
 
-        "Photorealistic rendering."
+        "Photorealistic cinematic rendering."
 
     )
 
     visual_intent.metadata["reference_tags"] = [
 
-        "science-fiction",
+        "photorealistic",
+
+        "cinematic",
 
     ]
 
-    stored_reference = registry.get("style-reference")
+    system.register(reference)
 
-    comparator = ConsistencyComparator()
+    analysis = system.analyze(
 
-    findings = comparator.compare(
-
-        stored_reference,
+        "dark-fantasy-reference",
 
         visual_intent,
 
     )
 
-    assert len(findings) == 2
+    assert len(analysis.comparison_findings) == 2
 
     assert all(
 
         finding.status is ComparisonStatus.MISMATCH
 
-        for finding in findings
+        for finding in analysis.comparison_findings
 
     )
 
-    reporter = ConflictReporter()
+    assert analysis.conflict_report.conflict_count == 2
 
-    report = reporter.build_report(findings)
+def test_complete_rcs_unavailable_flow() -> None:
 
-    assert report.finding_count == 2
+    system = ReferenceConsistencySystem()
 
-    assert report.conflict_count == 2
-
-    assert report.conflicts[0].reference_value == (
-
-        "Dark-fantasy graphic-novel rendering."
-
-    )
-
-    assert report.conflicts[0].visual_intent_value == (
-
-        "Photorealistic rendering."
-
-    )
-
-    assert report.conflicts[1].reference_value == frozenset(
-
-        {"dark-fantasy"}
-
-    )
-
-    assert report.conflicts[1].visual_intent_value == [
-
-        "science-fiction",
-
-    ]
-
-    # The conflict is reported, not resolved.
-
-    assert visual_intent.metadata["reference_description"] == (
-
-        "Photorealistic rendering."
-
-    )
-
-    assert visual_intent.metadata["reference_tags"] == [
-
-        "science-fiction",
-
-    ]
-
-def test_unavailable_comparison_is_not_reported_as_conflict() -> None:
-
-    registry = ReferenceRegistry()
-
-    reference = Reference(
-
-        reference_id="environment-reference",
-
-        reference_type=ReferenceType.ENVIRONMENT,
-
-        source="environment reference",
-
-        description="Ancient stone fortress.",
-
-    )
-
-    registry.register(reference)
+    reference = make_reference()
 
     visual_intent = make_visual_intent()
 
-    stored_reference = registry.get("environment-reference")
+    system.register(reference)
 
-    comparator = ConsistencyComparator()
+    analysis = system.analyze(
 
-    findings = comparator.compare(
-
-        stored_reference,
+        "dark-fantasy-reference",
 
         visual_intent,
 
     )
 
-    assert len(findings) == 1
+    assert len(analysis.comparison_findings) == 2
 
-    assert findings[0].status is ComparisonStatus.UNAVAILABLE
+    assert all(
 
-    reporter = ConflictReporter()
+        finding.status is ComparisonStatus.UNAVAILABLE
 
-    report = reporter.build_report(findings)
-
-    assert report.finding_count == 1
-
-    assert report.conflict_count == 0
-
-    assert report.conflicts == ()
-
-def test_registry_reference_remains_unchanged_after_processing() -> None:
-
-    registry = ReferenceRegistry()
-
-    reference = Reference(
-
-        reference_id="continuity-reference",
-
-        reference_type=ReferenceType.CHARACTER,
-
-        source="continuity reference",
-
-        roles=frozenset({ReferenceRole.CONTINUITY}),
-
-        description="Approved continuity reference.",
-
-        tags=frozenset({"continuity"}),
-
-        authoritative=True,
+        for finding in analysis.comparison_findings
 
     )
 
-    registry.register(reference)
+    assert analysis.conflict_report.conflict_count == 0
 
-    visual_intent = make_visual_intent()
+def test_rcs_does_not_modify_visual_intent() -> None:
 
-    checker = ConsistencyChecker()
+    system = ReferenceConsistencySystem()
 
-    checker.check(
-
-        registry.get("continuity-reference"),
-
-        visual_intent,
-
-    )
-
-    comparator = ConsistencyComparator()
-
-    comparator.compare(
-
-        registry.get("continuity-reference"),
-
-        visual_intent,
-
-    )
-
-    assert registry.get("continuity-reference") is reference
-
-    assert reference.reference_id == "continuity-reference"
-
-    assert reference.authoritative is True
-
-    assert reference.description == "Approved continuity reference."
-
-    assert reference.tags == frozenset({"continuity"})
-
-def test_multiple_references_can_be_processed_independently() -> None:
-
-    registry = ReferenceRegistry()
-
-    appearance_reference = Reference(
-
-        reference_id="appearance",
-
-        reference_type=ReferenceType.CHARACTER,
-
-        source="appearance reference",
-
-        description="Black scales and purple underbelly.",
-
-    )
-
-    style_reference = Reference(
-
-        reference_id="style",
-
-        reference_type=ReferenceType.STYLE,
-
-        source="style reference",
-
-        description="Painterly dark-fantasy rendering.",
-
-    )
-
-    registry.register(appearance_reference)
-
-    registry.register(style_reference)
+    reference = make_reference()
 
     visual_intent = make_visual_intent()
 
     visual_intent.metadata["reference_description"] = (
 
-        "Painterly dark-fantasy rendering."
+        "Existing description."
 
     )
 
-    comparator = ConsistencyComparator()
+    visual_intent.metadata["reference_tags"] = [
 
-    appearance_findings = comparator.compare(
+        "existing-tag",
 
-        registry.get("appearance"),
+    ]
+
+    original_description = visual_intent.metadata[
+
+        "reference_description"
+
+    ]
+
+    original_tags = list(
+
+        visual_intent.metadata["reference_tags"]
+
+    )
+
+    system.register(reference)
+
+    system.analyze(
+
+        "dark-fantasy-reference",
 
         visual_intent,
 
     )
 
-    style_findings = comparator.compare(
+    assert visual_intent.metadata["reference_description"] == (
 
-        registry.get("style"),
-
-        visual_intent,
+        original_description
 
     )
 
-    assert len(appearance_findings) == 1
+    assert visual_intent.metadata["reference_tags"] == original_tags
 
-    assert appearance_findings[0].status is ComparisonStatus.MISMATCH
+def test_rcs_does_not_modify_reference() -> None:
 
-    assert len(style_findings) == 1
+    system = ReferenceConsistencySystem()
 
-    assert style_findings[0].status is ComparisonStatus.MATCH
-
-def test_processing_does_not_promote_reference_to_visual_intent() -> None:
-
-    registry = ReferenceRegistry()
-
-    reference = Reference(
-
-        reference_id="reference-a",
-
-        reference_type=ReferenceType.CHARACTER,
-
-        source="approved reference",
-
-        authoritative=True,
-
-    )
-
-    registry.register(reference)
+    reference = make_reference()
 
     visual_intent = make_visual_intent()
 
-    comparator = ConsistencyComparator()
+    original_description = reference.description
 
-    findings = comparator.compare(
+    original_tags = reference.tags
 
-        registry.get("reference-a"),
+    original_roles = reference.roles
+
+    system.register(reference)
+
+    system.analyze(
+
+        "dark-fantasy-reference",
 
         visual_intent,
 
     )
 
-    reporter = ConflictReporter()
+    assert reference.description == original_description
 
-    report = reporter.build_report(findings)
+    assert reference.tags == original_tags
 
-    assert reference.authoritative is True
+    assert reference.roles == original_roles
 
-    assert not hasattr(reference, "visual_intent")
+def test_rcs_does_not_resolve_conflicts() -> None:
 
-    assert report.conflict_count == 0
+    system = ReferenceConsistencySystem()
+
+    reference = make_reference()
+
+    visual_intent = make_visual_intent()
+
+    visual_intent.metadata["reference_description"] = (
+
+        "Completely different rendering."
+
+    )
+
+    visual_intent.metadata["reference_tags"] = [
+
+        "unrelated-style",
+
+    ]
+
+    original_description = visual_intent.metadata[
+
+        "reference_description"
+
+    ]
+
+    original_tags = list(
+
+        visual_intent.metadata["reference_tags"]
+
+    )
+
+    system.register(reference)
+
+    analysis = system.analyze(
+
+        "dark-fantasy-reference",
+
+        visual_intent,
+
+    )
+
+    assert analysis.conflict_report.conflict_count == 2
+
+    assert visual_intent.metadata["reference_description"] == (
+
+        original_description
+
+    )
+
+    assert visual_intent.metadata["reference_tags"] == original_tags
+
+def test_rcs_supports_multiple_references() -> None:
+
+    system = ReferenceConsistencySystem()
+
+    style_reference = make_reference()
+
+    environment_reference = Reference(
+
+        reference_id="environment-reference",
+
+        reference_type=ReferenceType.ENVIRONMENT,
+
+        source="environment-source",
+
+        roles=frozenset(
+
+            {
+
+                ReferenceRole.ENVIRONMENT,
+
+            }
+
+        ),
+
+        description="Ancient fortress environment.",
+
+        tags=frozenset(
+
+            {
+
+                "fortress",
+
+            }
+
+        ),
+
+    )
+
+    system.register(style_reference)
+
+    system.register(environment_reference)
+
+    assert system.ids() == (
+
+        "dark-fantasy-reference",
+
+        "environment-reference",
+
+    )
+
+    visual_intent = make_visual_intent()
+
+    style_analysis = system.analyze(
+
+        "dark-fantasy-reference",
+
+        visual_intent,
+
+    )
+
+    environment_analysis = system.analyze(
+
+        "environment-reference",
+
+        visual_intent,
+
+    )
+
+    assert (
+
+        style_analysis.reference_id
+
+        == "dark-fantasy-reference"
+
+    )
+
+    assert (
+
+        environment_analysis.reference_id
+
+        == "environment-reference"
+
+    )
+
+def test_rcs_preserves_reference_and_visual_intent_separation() -> None:
+
+    system = ReferenceConsistencySystem()
+
+    reference = make_reference()
+
+    visual_intent = make_visual_intent()
+
+    system.register(reference)
+
+    analysis = system.analyze(
+
+        "dark-fantasy-reference",
+
+        visual_intent,
+
+    )
+
+    assert analysis.reference_id == reference.reference_id
+
+    assert reference is system.get("dark-fantasy-reference")
+
+    assert visual_intent.user_input == (
+
+        "Create a dark-fantasy character portrait."
+
+    )
