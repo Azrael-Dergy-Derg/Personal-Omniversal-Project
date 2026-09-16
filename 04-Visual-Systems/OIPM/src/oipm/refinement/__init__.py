@@ -10,6 +10,8 @@ The system separates:
 
 - refinement evaluation,
 
+- refinement application,
+
 - refinement results,
 
 - and eventual state mutation.
@@ -19,6 +21,14 @@ Refinement does not silently alter canon, references, or VisualIntent.
 """
 
 from __future__ import annotations
+
+from .refinement_applier import (
+
+    RefinementApplier,
+
+    RefinementApplication,
+
+)
 
 from .refinement_engine import (
 
@@ -53,6 +63,10 @@ from .refinement_result import (
 __all__ = [
 
     "RefinementAction",
+
+    "RefinementApplier",
+
+    "RefinementApplication",
 
     "RefinementChange",
 
