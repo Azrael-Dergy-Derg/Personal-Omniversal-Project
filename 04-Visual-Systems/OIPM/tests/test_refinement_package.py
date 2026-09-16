@@ -22,6 +22,12 @@ def test_refinement_package_exports_evaluator() -> None:
 
     assert refinement.RefinementEvaluator is not None
 
+def test_refinement_package_exports_application_types() -> None:
+
+    assert refinement.RefinementApplier is not None
+
+    assert refinement.RefinementApplication is not None
+
 def test_refinement_package_exports_result_types() -> None:
 
     assert refinement.RefinementChange is not None
@@ -35,6 +41,10 @@ def test_refinement_package_defines_expected_public_api() -> None:
     expected = {
 
         "RefinementAction",
+
+        "RefinementApplier",
+
+        "RefinementApplication",
 
         "RefinementChange",
 
