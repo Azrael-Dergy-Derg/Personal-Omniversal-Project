@@ -28,6 +28,12 @@ def test_refinement_package_exports_application_types() -> None:
 
     assert refinement.RefinementApplication is not None
 
+def test_refinement_package_exports_orchestration_types() -> None:
+
+    assert refinement.RefinementExecution is not None
+
+    assert refinement.RefinementSystem is not None
+
 def test_refinement_package_exports_result_types() -> None:
 
     assert refinement.RefinementChange is not None
@@ -52,6 +58,8 @@ def test_refinement_package_defines_expected_public_api() -> None:
 
         "RefinementEvaluator",
 
+        "RefinementExecution",
+
         "RefinementPlan",
 
         "RefinementRequest",
@@ -61,6 +69,8 @@ def test_refinement_package_defines_expected_public_api() -> None:
         "RefinementScope",
 
         "RefinementStatus",
+
+        "RefinementSystem",
 
     }
 
