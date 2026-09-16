@@ -12,6 +12,8 @@ The system separates:
 
 - refinement application,
 
+- refinement orchestration,
+
 - refinement results,
 
 - and eventual state mutation.
@@ -60,6 +62,14 @@ from .refinement_result import (
 
 )
 
+from .refinement_system import (
+
+    RefinementExecution,
+
+    RefinementSystem,
+
+)
+
 __all__ = [
 
     "RefinementAction",
@@ -74,6 +84,8 @@ __all__ = [
 
     "RefinementEvaluator",
 
+    "RefinementExecution",
+
     "RefinementPlan",
 
     "RefinementRequest",
@@ -83,5 +95,7 @@ __all__ = [
     "RefinementScope",
 
     "RefinementStatus",
+
+    "RefinementSystem",
 
 ]
